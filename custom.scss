@@ -1,0 +1,141 @@
+/*-- scss:defaults --*/
+
+// Colors
+$primary:   #047B77;
+$secondary: #1A9490;
+$accent:    cyan;
+$pale:      #CDEAE8;
+
+$body-bg:    #ffffff;
+$body-color: #1f2933;
+$link-color: $secondary;
+
+// Fonts
+$font-family-sans-serif: "Inter", "Segoe UI", Arial, sans-serif;
+$font-family-monospace:  "JetBrains Mono", monospace;
+
+$presentation-heading-color: $primary;
+$presentation-font-size-root: 26px;
+
+/*-- scss:rules --*/
+
+// Headings
+.reveal h2 {
+  font-size: 1.3em;
+  margin-top: 1.2em;          /* push h2 down, away from the top header */
+  border-bottom: 5px solid $accent;
+  padding-bottom: 0.4em;
+}
+
+.reveal h3 {
+  font-size: 1.2em;
+  color: $secondary;
+  margin-top: 0.5em;
+}
+
+.reveal h4 {
+  font-size: 1.1em;
+  font-weight: bold;
+  font-style: italic;
+  color: $body-color;
+}
+
+// (continued rules)
+
+.reveal .medium {
+  font-size: 0.9em; /* 90% of base size */
+}
+
+// Section slides
+.reveal .section-slide {
+  background: $pale;
+  color: $primary;
+}
+
+// ─── Tiny top header (uses revealjs .footer, repositioned) ───
+.reveal .footer {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: auto !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 16px 16px !important;
+  background: $primary !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  letter-spacing: 0.01em;
+  text-align: center !important;
+  z-index: 50;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+// Push slide content down so it doesn't collide with the header
+.reveal .slides {
+  padding-top: 18px;
+}
+
+// Slide number — sits inside the top header, right side
+.reveal .slide-number {
+  position: fixed !important;
+  top: 6px !important;
+  right: 14px !important;
+  bottom: auto !important;
+  background: rgba(255,255,255,0.18);
+  color: #ffffff !important;
+  padding: 14px 9px;
+  border-radius: 10px;
+  font-size: 12px;
+  z-index: 40;
+}
+
+// Logo — keep below header
+.reveal .slide-logo {
+  position: fixed !important;
+  bottom: 28px !important;
+  right: 15px !important;
+  max-height: 58px !important;
+  height: 58px !important;
+  width: auto !important;
+  z-index: 40;
+}
+
+// Code blocks
+.reveal pre {
+  background: #f3f6f6;
+  border-left: 4px solid $secondary;
+  margin: 1em auto;
+  overflow-x: hidden;   // prevents scrollbar for short code
+  overflow-y: hidden;
+  font-size: 0.85em;
+  width: 95%;
+}
+
+// Notes column beside charts (60/40 slide layout)
+.reveal .note-col {
+  font-size: 0.62em;
+  background: #F4FAF9;
+  border-left: 4px solid #047B77;
+  border-radius: 0 8px 8px 0;
+  padding: 0.9em 1em 0.9em 1.1em;
+  margin-top: 2.6em;          // aligns roughly with the chart area below tabs
+  line-height: 1.45;
+}
+.reveal .note-col strong {
+  color: #047B77;
+}
+.reveal .note-col ul {
+  margin-top: 0.4em;
+  padding-left: 1.1em;
+}
+.reveal .note-col li {
+  margin-bottom: 0.45em;
+}
+
+// keep charts fitting inside the 60% column
+.reveal .columns .column img {
+  max-width: 100%;
+  height: auto;
+  max-height: 520px;
+}
