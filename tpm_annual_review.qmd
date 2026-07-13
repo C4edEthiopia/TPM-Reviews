@@ -32,11 +32,6 @@ execute:
 library(readxl); library(dplyr); library(tidyr); library(ggplot2)
 library(plotly); library(forcats); library(scales)
 
-# Make every figure and every plotly widget fill 100% of its container width
-# instead of knitr's fixed default (960px). This is the R-side control that
-# stops charts from overflowing the slide/column, so no horizontal scrollbar.
-knitr::opts_chunk$set(out.width = "100%")
-
 SRC <- if (file.exists("TPM_data.xlsx")) "TPM_data.xlsx" else "../TPM_data.xlsx"
 
 # ---- C4ED palette ----
