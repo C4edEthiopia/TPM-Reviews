@@ -35,7 +35,7 @@ library(forcats); library(scales)
 # Static figure defaults: a 16:9-friendly aspect so every chart fits the slide
 # with no scrollbar (paired with the image CSS in the HTML block below).
 knitr::opts_chunk$set(dev = "png", dpi = 200, fig.align = "center",
-                      fig.width = 11.5, fig.height = 5.4)
+                      fig.width = 9.5, fig.height = 4.85)
 
 SRC <- if (file.exists("TPM_data.xlsx")) "TPM_data.xlsx" else "../TPM_data.xlsx"
 
@@ -46,13 +46,13 @@ GREY <- "#94a3b8"; GREYL <- "#cbd5e1"; WARN <- "#F59E0B"; RED <- "#EF4444"
 TEXTC <- "#1f2933"; MUTED <- "#475569"
 mlab <- function(x) format(as.Date(x), "%b-%y")
 
-theme_c4ed <- function(base_size = 16) {
+theme_c4ed <- function(base_size = 15) {
   theme_minimal(base_size = base_size) +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major = element_line(colour = "#e2e8f0",
                                           linewidth = 0.4),
-          axis.text = element_text(colour = TEXTC, face = "bold"),
-          axis.title = element_text(colour = TEXTC, face = "bold"),
+          axis.text = element_text(colour = TEXTC),
+          axis.title = element_text(colour = TEXTC),
           legend.position = "top", legend.title = element_blank(),
           legend.text = element_text(face = "bold"),
           strip.text = element_text(face = "bold", colour = TEXTC),
@@ -142,11 +142,12 @@ mr_l <- if (all(buckets %in% names(mr))) {
 # legacy bracket-midpoint view. 10-day target shown as a dashed line.
 plot_monthly <- function() {
   if (!is.null(mr_actual)) {
-    d <- mr_actual |> mutate(late = days > 10)
-    p <- ggplot(d, aes(days, my, fill = late)) +
-      geom_col(width = 0.78) +
+    d <- mr_actual |>
+      mutate(late = days > 10, m = factor(m, levels = rev(m)))
+    p <- ggplot(d, aes(x = days, y = m, fill = late)) +   # horizontal bars
+      geom_col(width = 0.72) +
       geom_text(aes(label = sprintf("%d days", as.integer(days))),
-                hjust = -0.15, fontface = "bold", size = 4.6, colour = TEXTC) +
+                hjust = -0.2, size = 4.6, colour = TEXTC) +
       geom_vline(xintercept = 10, colour = SECONDARY, linetype = "dashed",
                  linewidth = 0.8) +
       scale_fill_manual(values = c(`FALSE` = PRIMARY, `TRUE` = AMBER),
@@ -154,7 +155,6 @@ plot_monthly <- function() {
                         labels = c("Within 10-day target",
                                    "Late (over 10 days)"), name = NULL) +
       scale_x_continuous(expand = expansion(mult = c(0, 0.16))) +
-      scale_y_continuous(breaks = d$my, labels = d$m) +
       labs(x = NULL, y = NULL) +
       theme_c4ed() + theme(panel.grid.major.y = element_blank())
     return(intify(p))
@@ -406,6 +406,29 @@ eq_tot <- eq_l |> group_by(item) |>
 
 bd <- read_excel(SRC, sheet = "budget")
 total_b <- sum(bd$Budget)
+
+# ---- equipment value in US$ ----
+# Vests, Laptops (3 x 900) and Printers (3 x 800) as advised by the Country
+# Office; Tablets and E-bikes are taken from the budget sheet.
+bd_val <- function(item) {
+  v <- suppressWarnings(bd$Budget[bd$Item == item])
+  if (length(v)) sum(v, na.rm = TRUE) else NA_real_
+}
+item_value <- c(Tablets  = bd_val("Tablets"),
+                Vests    = 1500,
+                Ebikes   = bd_val("E-bike buying"),
+                Laptops  = 2700,
+                Printers = 2400)
+eq_val <- eq_tot |>
+  mutate(value = as.numeric(item_value[as.character(item)]),
+         units = as.integer(t),
+         disp = ifelse(as.character(item) == "Printers",
+                       "Printers & office supplies", as.character(item))) |>
+  arrange(value) |>                                  # order by amount
+  mutate(iy = row_number(),
+         lab = sprintf("  %d %s  ($%s)  -  %s", units, disp,
+                       formatC(value, format = "d", big.mark = ","), months))
+
 MERGE_RMC  <- c("DSA for RMC", "Transportation RMC")
 MERGE_MISC <- c("Airtime", "Travel", "Laptops", "Office supplies")
 bd_m <- bd |>
@@ -600,15 +623,15 @@ plot_coverage_region <- function(region) {
 }
 
 # ---- PDM as dodged bars: FMA count by WFP sub office (region) and month ----
-# Aggregates the per-activity monitor counts into a total FMA count per region
-# per month, drawn as STACKED vertical bars (months on the x-axis, WFP sub
+# Takes the maximum FMA count assigned across surveys per region
+# per month (the same field monitors cover several surveys; no summing), drawn as STACKED vertical bars (months on the x-axis, WFP sub
 # offices stacked within each month), per the Country Office request.
 pdm_region_cols <- c("Bahir Dar (BDR)" = PRIMARY, "Dessie" = BLUE,
                      "Mekelle" = AMBER, "Assosa" = MINT)
 plot_pdm_bars <- function(h = 500) {
   d <- pdm_data |>
     group_by(Month, Region) |>
-    summarise(FMAs = sum(Monitors), .groups = "drop") |>
+    summarise(FMAs = max(Monitors), .groups = "drop") |>
     mutate(Month = factor(as.character(Month), levels = pdm_month_order))
   p <- ggplot(d, aes(Month, FMAs, fill = Region)) +
     geom_col(width = 0.7) +
@@ -626,7 +649,7 @@ plot_pdm_bars <- function(h = 500) {
 plot_pdm_dodge <- function() {
   d <- pdm_data |>
     group_by(Month, Region) |>
-    summarise(FMAs = sum(Monitors), .groups = "drop") |>
+    summarise(FMAs = max(Monitors), .groups = "drop") |>
     mutate(Month = factor(as.character(Month), levels = pdm_month_order))
   p <- ggplot(d, aes(Month, FMAs, fill = Region)) +
     geom_col(position = position_dodge2(preserve = "single", padding = 0.1),
@@ -685,6 +708,26 @@ plot_coverage_region_act <- function(region, h = 440) {
                                     colour = "#0F172A"),
           axis.text.x = element_text(angle = 45, hjust = 1))
   intify(p, h = h)
+}
+
+# coverage aggregated across activities: one line per WFP sub office over the
+# months (all monitoring reports summed per office and month), single chart.
+cov_office_cols <- c("Bahir Dar" = PRIMARY, "Dessie" = BLUE,
+                     "Mekelle" = AMBER, "Asossa" = "#B23A48")
+plot_coverage_office_lines <- function() {
+  d <- cov_long |>
+    group_by(Location, date, m) |>
+    summarise(Value = sum(Value), .groups = "drop") |>
+    mutate(Location = factor(Location, levels = cov_levels))
+  p <- ggplot(d, aes(date, Value, colour = Location, group = Location)) +
+    geom_line(linewidth = 1.1) +
+    geom_point(size = 2.4) +
+    scale_colour_manual(values = cov_office_cols, name = "WFP sub office:") +
+    scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
+    labs(x = NULL, y = "Monitoring reports (all activities)") +
+    theme_c4ed() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  intify(p)
 }
 
 # ---- overall budget split: expense, forecast, remainder ----
@@ -781,11 +824,11 @@ clean_legend <- function(gg) {
 
 /* Static chart images fit within the slide in BOTH directions (width and
    height), keeping aspect ratio, so no scrollbar ever appears. */
-.reveal .slides img { max-width: 100%; max-height: 68vh; width: auto; height: auto; margin: 0 auto; display: block; }
-.reveal .panel-tabset img { max-width: 100%; max-height: 62vh; width: auto; height: auto; margin: 0 auto; display: block; }
-.reveal .columns .column img { max-width: 100%; max-height: 68vh; width: auto; height: auto; }
+.reveal .slides img { max-width: 88%; max-height: 56vh; width: auto; height: auto; margin: 0 auto; display: block; }
+.reveal .panel-tabset img { max-width: 88%; max-height: 52vh; width: auto; height: auto; margin: 0 auto; display: block; }
+.reveal .columns .column img { max-width: 100%; max-height: 56vh; width: auto; height: auto; }
 /* keep the reveal auto-stretch from forcing an oversized height */
-.reveal .slides .r-stretch { max-height: 68vh !important; }
+.reveal .slides .r-stretch { max-height: 56vh !important; }
 </style>
 ```
 
@@ -917,8 +960,8 @@ intify(p, h = 430, w = 680)
 
 
 ```{r}
-#| fig-width: 12.5
-#| fig-height: 5.6
+#| fig-width: 9.5
+#| fig-height: 4.85
 p <- ggplot() +
   geom_rect(data = filter(wl, n > 0),
             aes(xmin = left, xmax = right, ymin = my - 0.31,
@@ -1000,33 +1043,9 @@ plot_quarterly()
 
 ## Coverage and data quality
 
-::: {.panel-tabset}
-
-### Bahir Dar
-
 ```{r}
-plot_coverage_region_act("Bahir Dar")
+plot_coverage_office_lines()
 ```
-
-### Dessie
-
-```{r}
-plot_coverage_region_act("Dessie")
-```
-
-### Mekelle
-
-```{r}
-plot_coverage_region_act("Mekelle")
-```
-
-### Asossa
-
-```{r}
-plot_coverage_region_act("Asossa")
-```
-
-:::
 
 ## Post-Distribution Monitoring (PDM) deployments
 
@@ -1047,8 +1066,8 @@ plot_pdm_bars()
 ### By activity (previous)
 
 ```{r}
-#| fig-width: 12
-#| fig-height: 6
+#| fig-width: 9.5
+#| fig-height: 4.85
 plot_pdm_donor()
 ```
 
@@ -1114,7 +1133,7 @@ p <- ggplot(tr_a, aes(x, Days, fill = Type,
   labs(x = NULL, y = "Training days") +
   theme_c4ed() +
   theme(panel.grid.major.x = element_blank())
-intify(p, w = 690)
+intify(p, w = 700)
 ```
 
 ::: {.content-visible when-profile="wfp"}
@@ -1184,7 +1203,7 @@ p <- ggplot(agg) +
             aes(lab_x(days, sprintf("%d days  (%d staff)", days, staff),
                       max(agg$days) + 8), ty,
                 label = sprintf("%d days  (%d staff)", days, staff)),
-            fontface = "bold", size = 4, colour = TEXTC) +
+             size = 4, colour = TEXTC) +
   geom_text(data = filter(agg, days == 0),
             aes(lab_x(0, sprintf("0 days (%d staff)", staff),
                       max(agg$days) + 8), ty,
@@ -1218,23 +1237,19 @@ intify(p, w = 680)
 
 
 ```{r}
-p <- ggplot(eq_tot,
-            aes(t, iy, fill = item,
-                text = sprintf("%s: %d units (%s)", item,
-                               as.integer(t), months))) +
-  geom_rect(aes(xmin = 0, xmax = t, ymin = iy - 0.31, ymax = iy + 0.31),
+dollar0 <- function(v) paste0("$", formatC(v, format = "d", big.mark = ","))
+p <- ggplot(eq_val, aes(value, iy, fill = item)) +
+  geom_rect(aes(xmin = 0, xmax = value, ymin = iy - 0.31, ymax = iy + 0.31),
             colour = GREYL, linewidth = 0.2) +
-  geom_text(aes(x = lab_x(t, sprintf("%d units  (%s)", as.integer(t),
-                                     months), 108),
-                label = sprintf("%d units  (%s)", as.integer(t), months)),
-            fontface = "bold", size = 3.8, colour = TEXTC) +
+  geom_text(aes(x = value, label = lab),
+            hjust = 0, size = 4.2, colour = TEXTC) +
   scale_fill_manual(values = item_cols, guide = "none") +
-  scale_x_continuous(limits = c(0, 135)) +
-  scale_y_continuous(breaks = eq_tot$iy, labels = eq_tot$item) +
+  scale_x_continuous(labels = dollar0, expand = expansion(mult = c(0, 0.5))) +
+  scale_y_continuous(breaks = eq_val$iy, labels = eq_val$disp) +
   labs(x = NULL, y = NULL) +
   theme_c4ed() +
   theme(panel.grid.major.y = element_blank())
-intify(p, w = 680)
+intify(p, w = 690)
 ```
 
 
@@ -1291,28 +1306,22 @@ We comply with all requirements of the WFP Information Security Policy as the Pr
 
 ::: {.panel-tabset}
 
-### Overall (donut)
+### Overall 
 
 ```{r}
-#| fig-width: 8
-#| fig-height: 6.4
+#| fig-width: 8.5
+#| fig-height: 6
 plot_budget_overall()
 ```
 
-### Overall (pie)
 
-```{r}
-#| fig-width: 8
-#| fig-height: 6.4
-plot_budget_overall_pie()
-```
 
 ### Amounts
 
 
 ```{r}
-#| fig-width: 12
-#| fig-height: 6.2
+#| fig-width: 9.5
+#| fig-height: 4.85
 # Prepare data
 bd_o2 <- bd_o |>
   mutate(
@@ -1520,21 +1529,6 @@ intify(p, w = 680)
 
 
 
-### Amounts (static, with figures)
-
-
-![](charts/11h_budget_expense_forecast_items.png)
-
-::: {.content-visible when-profile="wfp"}
-
-- This static version prints the same expense and forecast figures against each budget line.
-- It is provided for the PDF and print handout, where interactive tooltips are not available.
-- The over-budget training and HQ salary lines remain the key pressure points.
-
-:::
-
-
-
 :::
 
 ## Finance review
@@ -1547,15 +1541,12 @@ intify(p, w = 680)
 
 ```{r}
 fin_l <- fin |>
-  select(m, x, Expense, Forecast, Remainder,
-         `Expense + VAT`, `Forecast + VAT`) |>
-  pivot_longer(c(Expense, Forecast, `Expense + VAT`, `Forecast + VAT`,
-                 Remainder),
+  select(m, x, Expense, Forecast, Remainder) |>
+  pivot_longer(c(Expense, Forecast, Remainder),
                names_to = "Metric", values_to = "Amount") |>
   filter(!is.na(Amount)) |>
   mutate(Metric = factor(Metric,
-                         levels = c("Expense", "Forecast", "Expense + VAT",
-                                    "Forecast + VAT", "Remainder")))
+                         levels = c("Expense", "Forecast", "Remainder")))
 p <- ggplot() +
   geom_col(data = fin, aes(x, Budget, fill = "Monthly budget"),
            width = 0.62, alpha = 0.55) +
@@ -1575,12 +1566,8 @@ p <- ggplot() +
              size = 1.9) +
   scale_fill_manual(values = c(`Monthly budget` = GREYL)) +
   scale_colour_manual(values = c(Expense = PRIMARY, Forecast = BLUE,
-                                 `Expense + VAT` = AMBER,
-                                 `Forecast + VAT` = MUTED,
                                  Remainder = RED)) +
   scale_linetype_manual(values = c(Expense = "solid", Forecast = "dashed",
-                                   `Expense + VAT` = "solid",
-                                   `Forecast + VAT` = "dashed",
                                    Remainder = "dotted")) +
   scale_x_continuous(breaks = fin$x, labels = fin$m) +
   scale_y_continuous(labels = function(v) sprintf("%.0fk", v / 1000)) +
@@ -1617,7 +1604,7 @@ intify(p, w = 680) |> clean_legend()
 :::
 
 
-## Budget review: Current pressures and cost drivers {.smaller}
+## Budget review: Current pressures and cost drivers
 
 - **Transportation & Mobility:** Rising fuel costs, local shortages, and regional transport constraints severely impact field efficiency. While (a limited number of) motorcycles assist monitor teams, current transportation provisions require a strategic review.
 - **DSA Alignment:** Current overnight Daily Subsistence Allowance (DSA) rates are outdated and need adjustments to reflect the increased cost of living and prevailing regional market conditions.
