@@ -825,7 +825,7 @@ clean_legend <- function(gg) {
 /* Static chart images fit within the slide in BOTH directions (width and
    height), keeping aspect ratio, so no scrollbar ever appears. */
 .reveal .slides img { max-width: 88%; max-height: 56vh; width: auto; height: auto; margin: 0 auto; display: block; }
-.reveal .panel-tabset img { max-width: 88%; max-height: 52vh; width: auto; height: auto; margin: 0 auto; display: block; }
+.reveal .panel-tabset img { max-width: 88%; max-height: 64vh; width: auto; height: auto; margin: 0 auto; display: block; }
 .reveal .columns .column img { max-width: 100%; max-height: 56vh; width: auto; height: auto; }
 /* keep the reveal auto-stretch from forcing an oversized height */
 .reveal .slides .r-stretch { max-height: 56vh !important; }
@@ -1309,8 +1309,8 @@ We comply with all requirements of the WFP Information Security Policy as the Pr
 ### Overall 
 
 ```{r}
-#| fig-width: 8.5
-#| fig-height: 6
+#| fig-width: 9
+#| fig-height: 7
 plot_budget_overall()
 ```
 
@@ -1581,11 +1581,9 @@ intify(p, w = 680) |> clean_legend()
 
 - Monthly spending tracked the monthly budget closely for most of the year.
 - Two months ran over budget: October 2025 (about 11k over) and May 2026 (about 5k over).
-- Lines including VAT sit above the pre-VAT expense, showing the tax load each month.
 - The dotted vertical line marks the end of actuals (May-26); months after it are forecast or still pending.
 
 :::
-
 
 
 ### By category (percent)
