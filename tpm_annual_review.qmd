@@ -32,6 +32,11 @@ execute:
 library(readxl); library(dplyr); library(tidyr); library(ggplot2)
 library(plotly); library(forcats); library(scales)
 
+# Make every figure and every plotly widget fill 100% of its container width
+# instead of knitr's fixed default (960px). This is the R-side control that
+# stops charts from overflowing the slide/column, so no horizontal scrollbar.
+knitr::opts_chunk$set(out.width = "100%")
+
 SRC <- if (file.exists("TPM_data.xlsx")) "TPM_data.xlsx" else "../TPM_data.xlsx"
 
 # ---- C4ED palette ----
@@ -57,7 +62,7 @@ theme_c4ed <- function(base_size = 13) {
 # width is left unset so each chart fills 100% of its column or slide and sits
 # flush left. A small resize hook (the HTML block just before "## Agenda")
 # redraws any chart that starts life in a hidden tab.
-intify <- function(p, tip = "text", h = 500, w = NULL) {
+intify <- function(p, tip = "text", h = 400, w = NULL) {
   ggplotly(p, tooltip = tip, height = h) |>
     config(displayModeBar = FALSE, responsive = TRUE) |>
     layout(autosize = TRUE,
@@ -520,7 +525,19 @@ clean_legend <- function(gg) {
 .reveal .column.expl { font-size: 0.72em; }
 .reveal .column.expl ul { margin-top: 0.15em; padding-left: 1.05em; }
 .reveal .column.expl li { margin-bottom: 0.22em; line-height: 1.22; }
-.reveal .panel-tabset img { max-height: 74vh; width: auto; margin: 0 auto; display: block; }
+
+/* Interactive (plotly) charts always fill their container width and never
+   overflow, so no horizontal scrollbar appears. The resize hook above redraws
+   them at the new container width. */
+.reveal .html-widget,
+.reveal div.plotly.html-widget,
+.reveal .plotly { width: 100% !important; max-width: 100% !important; }
+
+/* Static chart images fit within the slide or column, keeping aspect ratio,
+   so they never require left-to-right scrolling. */
+.reveal .slides img { max-width: 100%; height: auto; }
+.reveal .panel-tabset img { max-width: 100%; max-height: 74vh; width: auto; height: auto; margin: 0 auto; display: block; }
+.reveal .columns .column img { max-width: 100%; height: auto; max-height: 74vh; }
 </style>
 ```
 
@@ -1179,7 +1196,11 @@ p <- ggplot(bd_o2) +
     panel.grid.major.y = element_blank(),
     legend.title = element_blank())
 
-intify(p, w = 840)
+# Cap the left margin so the item-name gutter does not push the bars to the
+# right. ggplotly would otherwise reserve ~324px for the longest label; 190px
+# fits the labels and lets the bars use the reclaimed space on the left.
+intify(p, w = 840) |>
+  layout(margin = list(l = 190))
 ```
 
 
