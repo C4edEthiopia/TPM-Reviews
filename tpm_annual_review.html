@@ -125,6 +125,38 @@
       margin-right: 0; 
     }
   </style>
+  <style>
+  .reveal .column.expl { font-size: 0.72em; }
+  .reveal .column.expl ul { margin-top: 0.15em; padding-left: 1.05em; }
+  .reveal .column.expl li { margin-bottom: 0.22em; line-height: 1.22; }
+
+  /* Static chart images fit within the slide in BOTH directions (width and
+     height), keeping aspect ratio, so no scrollbar ever appears. */
+  .reveal .slides img { max-width: 88%; max-height: 56vh; width: auto; height: auto; margin: 0 auto; display: block; }
+  .reveal .panel-tabset img { max-width: 88%; max-height: 64vh; width: auto; height: auto; margin: 0 auto; display: block; }
+  .reveal .columns .column img { max-width: 100%; max-height: 56vh; width: auto; height: auto; }
+  .reveal .slides .r-stretch { max-height: 56vh !important; }
+  /* opt-in taller charts (wrap a chart in ::: {.tallfig}) */
+  .reveal .slides .tallfig img,
+  .reveal .slides .tallfig .r-stretch { max-height: 68vh !important; }
+  </style>
+  <script>
+  // Start slide numbering at the Agenda: the title slide (index 0) shows no
+  // number, the Agenda (index 1) shows "1", and so on.
+  document.addEventListener('DOMContentLoaded', function () {
+    var iv = setInterval(function () {
+      if (window.Reveal && Reveal.isReady && Reveal.isReady()) {
+        clearInterval(iv);
+        Reveal.configure({
+          slideNumber: function (slide) {
+            var h = Reveal.getIndices(slide).h;
+            return h < 1 ? '' : String(h);
+          }
+        });
+      }
+    }, 100);
+  });
+  </script>
 </head>
 <body class="quarto-light">
   <div class="reveal">
@@ -143,41 +175,6 @@ C4ED | Center for Evaluation and Development
 </div>
 
   <p class="date">14 July 2026</p>
-</section>
-<section class="slide level2">
-
-<script>
-(function () {
-  function nudge() { window.dispatchEvent(new Event('resize')); }
-  if (window.Reveal && Reveal.on) {
-    Reveal.on('ready', function () { setTimeout(nudge, 150); });
-    Reveal.on('slidechanged', function () { setTimeout(nudge, 80); });
-  }
-  document.addEventListener('click', function (e) {
-    if (e.target.closest('.panel-tabset')) setTimeout(nudge, 80);
-  });
-})();
-</script>
-<style>
-.reveal .column.expl { font-size: 0.72em; }
-.reveal .column.expl ul { margin-top: 0.15em; padding-left: 1.05em; }
-.reveal .column.expl li { margin-bottom: 0.22em; line-height: 1.22; }
-
-/* Interactive (plotly) charts always fill their container width and never
-   overflow, so no horizontal scrollbar appears. The resize hook above redraws
-   them at the new container width. */
-.reveal .html-widget,
-.reveal div.plotly.html-widget,
-.reveal .plotly { width: 100% !important; max-width: 100% !important; }
-
-/* Static chart images fit within the slide in BOTH directions (width and
-   height), keeping aspect ratio, so no scrollbar ever appears. */
-.reveal .slides img { max-width: 88%; max-height: 56vh; width: auto; height: auto; margin: 0 auto; display: block; }
-.reveal .panel-tabset img { max-width: 88%; max-height: 64vh; width: auto; height: auto; margin: 0 auto; display: block; }
-.reveal .columns .column img { max-width: 100%; max-height: 56vh; width: auto; height: auto; }
-/* keep the reveal auto-stretch from forcing an oversized height */
-.reveal .slides .r-stretch { max-height: 56vh !important; }
-</style>
 </section>
 <section id="agenda" class="slide level2">
 <h2>Agenda</h2>
@@ -231,7 +228,7 @@ C4ED | Center for Evaluation and Development
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure>
-<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-1-1.png" class="quarto-figure quarto-figure-center" width="1900"></p>
+<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-1-1.png" class="quarto-figure quarto-figure-center" width="1700"></p>
 </figure>
 </div>
 </div>
@@ -253,8 +250,18 @@ C4ED | Center for Evaluation and Development
 </section>
 <section id="weekly-hot-buttonflash-reports" class="slide level2">
 <h2>Weekly hot button/flash reports</h2>
-
-<img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-3-1.png" class="quarto-figure quarto-figure-center r-stretch" width="1900"></section>
+<div class="tallfig">
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-3-1.png" class="quarto-figure quarto-figure-center" width="1900"></p>
+</figure>
+</div>
+</div>
+</div>
+</div>
+</section>
 <section id="monthly-narrative-and-expenditure-reports" class="slide level2">
 <h2>Monthly narrative and expenditure reports</h2>
 
@@ -327,21 +334,11 @@ C4ED | Center for Evaluation and Development
 <img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-10-1.png" class="quarto-figure quarto-figure-center r-stretch" width="1900"></section>
 <section id="training-provided" class="slide level2">
 <h2>Training provided</h2>
-<div class="panel-tabset">
-<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">By event</a></li><li><a href="#tabset-3-2">By month (horizontal)</a></li></ul>
-<div class="tab-content">
-<div id="tabset-3-1">
-<div class="cell" data-layout-align="center">
-<div class="cell-output-display">
-<div class="quarto-figure quarto-figure-center">
-<figure>
-<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-11-1.png" class="quarto-figure quarto-figure-center" width="1900"></p>
-</figure>
-</div>
-</div>
-</div>
-</div>
-<div id="tabset-3-2">
+
+<img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-11-1.png" class="quarto-figure quarto-figure-center r-stretch" width="1900"></section>
+<section id="managementsupport-staff-travel" class="slide level2">
+<h2>Management/support staff travel</h2>
+<div class="tallfig">
 <div class="cell" data-layout-align="center">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
@@ -352,17 +349,11 @@ C4ED | Center for Evaluation and Development
 </div>
 </div>
 </div>
-</div>
-</div>
 </section>
-<section id="managementsupport-staff-travel" class="slide level2">
-<h2>Management/support staff travel</h2>
-
-<img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-13-1.png" class="quarto-figure quarto-figure-center r-stretch" width="1900"></section>
 <section id="equipment" class="slide level2">
 <h2>Equipment</h2>
 
-<img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-14-1.png" class="quarto-figure quarto-figure-center r-stretch" width="1900"></section>
+<img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-13-1.png" class="quarto-figure quarto-figure-center r-stretch" width="1900"></section>
 <section id="compliance-review-wfp-anti-fraud-anti-corruption-policy-afac" class="slide level2">
 <h2>Compliance review: WFP Anti-Fraud &amp; Anti-Corruption Policy (AFAC)</h2>
 <p>We maintain a zero-tolerance policy and strictly comply with WFP’s prohibitions against all Prohibited Practices:</p>
@@ -422,20 +413,31 @@ C4ED | Center for Evaluation and Development
 <section id="budget-review" class="slide level2">
 <h2>Budget review</h2>
 <div class="panel-tabset">
-<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Overall</a></li><li><a href="#tabset-4-2">Amounts</a></li><li><a href="#tabset-4-3">By category (percent)</a></li><li><a href="#tabset-4-4">By line item (percent)</a></li></ul>
+<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Overall</a></li><li><a href="#tabset-3-2">Amounts</a></li><li><a href="#tabset-3-3">By category (percent)</a></li><li><a href="#tabset-3-4">By line item (percent)</a></li></ul>
 <div class="tab-content">
-<div id="tabset-4-1">
+<div id="tabset-3-1">
 <div class="cell" data-layout-align="center">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure>
-<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-15-1.png" class="quarto-figure quarto-figure-center" width="1800"></p>
+<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-14-1.png" class="quarto-figure quarto-figure-center" width="1800"></p>
 </figure>
 </div>
 </div>
 </div>
 </div>
-<div id="tabset-4-2">
+<div id="tabset-3-2">
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-15-1.png" class="quarto-figure quarto-figure-center" width="1900"></p>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-3-3">
 <div class="cell" data-layout-align="center">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
@@ -446,23 +448,12 @@ C4ED | Center for Evaluation and Development
 </div>
 </div>
 </div>
-<div id="tabset-4-3">
+<div id="tabset-3-4">
 <div class="cell" data-layout-align="center">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure>
 <p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-17-1.png" class="quarto-figure quarto-figure-center" width="1900"></p>
-</figure>
-</div>
-</div>
-</div>
-</div>
-<div id="tabset-4-4">
-<div class="cell" data-layout-align="center">
-<div class="cell-output-display">
-<div class="quarto-figure quarto-figure-center">
-<figure>
-<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-18-1.png" class="quarto-figure quarto-figure-center" width="1900"></p>
 </figure>
 </div>
 </div>
@@ -474,20 +465,20 @@ C4ED | Center for Evaluation and Development
 <section id="finance-review" class="slide level2">
 <h2>Finance review</h2>
 <div class="panel-tabset">
-<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Monthly detail</a></li><li><a href="#tabset-5-2">By category (percent)</a></li></ul>
+<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Monthly detail</a></li><li><a href="#tabset-4-2">By category (percent)</a></li></ul>
 <div class="tab-content">
-<div id="tabset-5-1">
+<div id="tabset-4-1">
 <div class="cell" data-layout-align="center">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure>
-<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-19-1.png" class="quarto-figure quarto-figure-center" width="1900"></p>
+<p><img data-src="tpm_annual_review_files/figure-revealjs/unnamed-chunk-18-1.png" class="quarto-figure quarto-figure-center" width="1900"></p>
 </figure>
 </div>
 </div>
 </div>
 </div>
-<div id="tabset-5-2">
+<div id="tabset-4-2">
 <p><img data-src="charts/11g_budget_expense_forecast_percent.png"></p>
 </div>
 </div>
@@ -500,17 +491,8 @@ C4ED | Center for Evaluation and Development
 <li><strong>DSA Alignment:</strong> Current overnight Daily Subsistence Allowance (DSA) rates are outdated and need adjustments to reflect the increased cost of living and prevailing regional market conditions.</li>
 <li><strong>Compensation:</strong> Raised by TPM staff during trainings and review meetings, compensation packages are under pressure and need to be reviewed to ensure retention and motivation.</li>
 <li><strong>Uneven/Expanded Scope:</strong> Originally budgeted for mostly process and basic output/outcome monitoring, monitors are managing complex tasks (Outcome Monitoring, PDM, Early Warning, and market assessments).</li>
-<li><strong>Staff Capacity Deficits:</strong> In Tigray, insufficient staff due to the reduction from 23 to 15 FMAs. Currently, an overwhelming workload across multiple parallel surveys and process monitoring might compromise data quality and regional coverage.</li>
+<li><strong>Staff Capacity Deficits:</strong> In Tigray, insufficient staff due to the reduction from 23 to 15 FMAs. Currently, an overwhelming workload across multiple parallel surveys and pro</li>
 </ul>
-</section>
-<section id="section" class="slide level2 center" data-background-color="white">
-<h2></h2>
-<div style="text-align:center; color:#047B77;">
-<p><span style="font-size: 3em;"><strong>Thank you!</strong></span></p>
-<div style="margin-top: 1.2em; font-size: 0.85em;">
-<p>C4ED | Center for Evaluation and Development</p>
-</div>
-</div>
 
 </section>
     </div>

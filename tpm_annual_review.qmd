@@ -12,6 +12,7 @@ format:
     height: 720
     margin: 0.05
     slide-number: c/t
+    include-in-header: header.html
     menu: true
     controls: true
     transition: fade
@@ -797,41 +798,6 @@ clean_legend <- function(gg) {
 }
 ```
 
-```{=html}
-<script>
-(function () {
-  function nudge() { window.dispatchEvent(new Event('resize')); }
-  if (window.Reveal && Reveal.on) {
-    Reveal.on('ready', function () { setTimeout(nudge, 150); });
-    Reveal.on('slidechanged', function () { setTimeout(nudge, 80); });
-  }
-  document.addEventListener('click', function (e) {
-    if (e.target.closest('.panel-tabset')) setTimeout(nudge, 80);
-  });
-})();
-</script>
-<style>
-.reveal .column.expl { font-size: 0.72em; }
-.reveal .column.expl ul { margin-top: 0.15em; padding-left: 1.05em; }
-.reveal .column.expl li { margin-bottom: 0.22em; line-height: 1.22; }
-
-/* Interactive (plotly) charts always fill their container width and never
-   overflow, so no horizontal scrollbar appears. The resize hook above redraws
-   them at the new container width. */
-.reveal .html-widget,
-.reveal div.plotly.html-widget,
-.reveal .plotly { width: 100% !important; max-width: 100% !important; }
-
-/* Static chart images fit within the slide in BOTH directions (width and
-   height), keeping aspect ratio, so no scrollbar ever appears. */
-.reveal .slides img { max-width: 88%; max-height: 56vh; width: auto; height: auto; margin: 0 auto; display: block; }
-.reveal .panel-tabset img { max-width: 88%; max-height: 64vh; width: auto; height: auto; margin: 0 auto; display: block; }
-.reveal .columns .column img { max-width: 100%; max-height: 56vh; width: auto; height: auto; }
-/* keep the reveal auto-stretch from forcing an oversized height */
-.reveal .slides .r-stretch { max-height: 56vh !important; }
-</style>
-```
-
 ## Agenda
 
 - Introduction
@@ -840,7 +806,6 @@ clean_legend <- function(gg) {
 - Coverage and data quality
 - Compliance with WFP policies
 - Budget review, including current pressures and cost drivers
-
 
 ## Introduction: The TPM Assignment at a Glance
 
@@ -875,10 +840,11 @@ clean_legend <- function(gg) {
 
 ::: {.panel-tabset}
 
-### Plan matrix 
-
+### Plan matrix
 
 ```{r}
+#| fig-width: 8.5
+#| fig-height: 4
 hub_cols_mp <- c("Bahir Dar" = PRIMARY, "Dessie" = BLUE,
                  "Mekelle" = MINT, "Asossa" = AMBER)
 mpl <- mp |>
@@ -915,10 +881,7 @@ intify(p, h = 330, w = 680)
 
 :::
 
-
-
 ### Active months 
-
 
 ```{r}
 cap <- mp |>
@@ -951,17 +914,15 @@ intify(p, h = 430, w = 680)
 
 :::
 
-
-
-
 :::
 
 ## Weekly hot button/flash reports
 
+::: {.tallfig}
 
 ```{r}
 #| fig-width: 9.5
-#| fig-height: 4.85
+#| fig-height: 5.6
 p <- ggplot() +
   geom_rect(data = filter(wl, n > 0),
             aes(xmin = left, xmax = right, ymin = my - 0.31,
@@ -989,6 +950,8 @@ p <- ggplot() +
 intify(p, w = 500)
 ```
 
+:::
+
 ::: {.content-visible when-profile="wfp"}
 
 - Across the year 44 weekly reports were submitted, of which 24 (55%) arrived on Monday, the on-time day.
@@ -997,10 +960,7 @@ intify(p, w = 500)
 
 :::
 
-
-
 ## Monthly narrative and expenditure reports
-
 
 ```{r}
 plot_monthly()
@@ -1014,10 +974,7 @@ plot_monthly()
 
 :::
 
-
-
 ## Process and outcome monitoring reports
-
 
 ```{r}
 plot_quarterly()
@@ -1030,7 +987,6 @@ plot_quarterly()
 - With only two quarters reported, the record is mixed and worth watching.
 
 :::
-
 
 ## Review of reporting processes
 
@@ -1075,8 +1031,6 @@ plot_pdm_donor()
 
 ## Staffing and deployment
 
-
-
 ```{r}
 dep <- read_excel(SRC, sheet = "deployment") |>
   filter(`FMA headcount` > 0) |>
@@ -1110,13 +1064,7 @@ intify(p, w = 680)
 
 :::
 
-
 ## Training provided
-
-::: {.panel-tabset}
-
-### By event 
-
 
 ```{r}
 p <- ggplot(tr_a, aes(x, Days, fill = Type,
@@ -1144,54 +1092,13 @@ intify(p, w = 700)
 
 :::
 
-
-
-### By month (horizontal)
-
-
-```{r}
-tr_h <- tr |>
-  arrange(event) |>
-  mutate(ry = rev(row_number()),
-         ylab = sprintf("%s  (%s)", Place, mlab(Month)),
-         dlab = paste(fmt_days(Days), "days"))
-p <- ggplot(tr_h) +
-  geom_rect(aes(xmin = 0, xmax = Days, ymin = ry - 0.31, ymax = ry + 0.31,
-                fill = Type,
-                text = sprintf("%s, %s: %s (%s)", Place, mlab(Month),
-                               dlab, Type))) +
-  geom_text(aes(x = lab_x(Days, dlab, 7), y = ry, label = dlab),
-            fontface = "bold", size = 3.6, colour = TEXTC) +
-  scale_fill_manual(values = type_cols,
-                    breaks = c("Basic", "Refresher", "CP cooperation")) +
-  scale_x_continuous(limits = c(0, 9), breaks = 0:6) +
-  scale_y_continuous(breaks = tr_h$ry, labels = tr_h$ylab) +
-  labs(x = NULL, y = NULL) +
-  theme_c4ed() +
-  theme(panel.grid.major.y = element_blank())
-intify(p, w = 680)
-```
-
-::: {.content-visible when-profile="wfp"}
-
-- This view lists each session by location and month, colored by training type.
-
-- Basic training clustered early (September and October) as hubs came online.
-
-- Refresher training led the later events in February and May, keeping monitors current.
-
-:::
-
-
-
-:::
-
 ## Management/support staff travel
 
-
-
+::: {.tallfig}
 
 ```{r}
+#| fig-width: 9.5
+#| fig-height: 5.6
 p <- ggplot(agg) +
   geom_rect(data = filter(agg, days > 0),
             aes(xmin = 0, xmax = days, ymin = ty - 0.31, ymax = ty + 0.31,
@@ -1220,6 +1127,8 @@ p <- ggplot(agg) +
 intify(p, w = 680)
 ```
 
+:::
+
 ::: {.content-visible when-profile="wfp"}
 
 - Management and support staff made 13 monitoring trips totaling 78 person-days.
@@ -1228,13 +1137,7 @@ intify(p, w = 680)
 
 :::
 
-
-
-
-
 ## Equipment
-
-
 
 ```{r}
 dollar0 <- function(v) paste0("$", formatC(v, format = "d", big.mark = ","))
@@ -1251,8 +1154,6 @@ p <- ggplot(eq_val, aes(value, iy, fill = item)) +
   theme(panel.grid.major.y = element_blank())
 intify(p, w = 690)
 ```
-
-
 
 ## Compliance review: WFP Anti-Fraud & Anti-Corruption Policy (AFAC)
 
@@ -1314,10 +1215,7 @@ We comply with all requirements of the WFP Information Security Policy as the Pr
 plot_budget_overall()
 ```
 
-
-
 ### Amounts
-
 
 ```{r}
 #| fig-width: 9.5
@@ -1416,11 +1314,7 @@ intify(p)
 
 :::
 
-
-
-
 ### By category (percent)
-
 
 ```{r}
 p <- ggplot(cat_agg) +
@@ -1475,10 +1369,7 @@ intify(p, w = 680)
 
 :::
 
-
-
 ### By line item (percent)
-
 
 ```{r}
 p <- ggplot(bd_p) +
@@ -1524,20 +1415,13 @@ intify(p, w = 680)
 
 :::
 
-
-
-
-
-
 :::
 
 ## Finance review
 
 ::: {.panel-tabset}
 
-
 ### Monthly detail 
-
 
 ```{r}
 fin_l <- fin |>
@@ -1585,9 +1469,7 @@ intify(p, w = 680) |> clean_legend()
 
 :::
 
-
 ### By category (percent)
-
 
 ![](charts/11g_budget_expense_forecast_percent.png)
 
@@ -1601,24 +1483,10 @@ intify(p, w = 680) |> clean_legend()
 
 :::
 
-
 ## Budget review: Current pressures and cost drivers
 
 - **Transportation & Mobility:** Rising fuel costs, local shortages, and regional transport constraints severely impact field efficiency. While (a limited number of) motorcycles assist monitor teams, current transportation provisions require a strategic review.
 - **DSA Alignment:** Current overnight Daily Subsistence Allowance (DSA) rates are outdated and need adjustments to reflect the increased cost of living and prevailing regional market conditions.
 - **Compensation:** Raised by TPM staff during trainings and review meetings, compensation packages are under pressure and need to be reviewed to ensure retention and motivation.
 - **Uneven/Expanded Scope:** Originally budgeted for mostly process and basic output/outcome monitoring, monitors are managing complex tasks (Outcome Monitoring, PDM, Early Warning, and market assessments).
-- **Staff Capacity Deficits:** In Tigray, insufficient staff due to the reduction from 23 to 15 FMAs. Currently, an overwhelming workload across multiple parallel surveys and process monitoring might compromise data quality and regional coverage.
-
-
-## {background-color="white" .center}
-
-::: {style="text-align:center; color:#047B77;"}
-
-[**Thank you!**]{style="font-size: 3em;"}
-
-::: {style="margin-top: 1.2em; font-size: 0.85em;"}
-C4ED | Center for Evaluation and Development
-:::
-
-:::
+- **Staff Capacity Deficits:** In Tigray, insufficient staff due to the reduction from 23 to 15 FMAs. Currently, an overwhelming workload across multiple parallel surveys and pro

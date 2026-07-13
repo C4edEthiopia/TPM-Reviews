@@ -1,0 +1,32 @@
+<style>
+.reveal .column.expl { font-size: 0.72em; }
+.reveal .column.expl ul { margin-top: 0.15em; padding-left: 1.05em; }
+.reveal .column.expl li { margin-bottom: 0.22em; line-height: 1.22; }
+
+/* Static chart images fit within the slide in BOTH directions (width and
+   height), keeping aspect ratio, so no scrollbar ever appears. */
+.reveal .slides img { max-width: 88%; max-height: 56vh; width: auto; height: auto; margin: 0 auto; display: block; }
+.reveal .panel-tabset img { max-width: 88%; max-height: 64vh; width: auto; height: auto; margin: 0 auto; display: block; }
+.reveal .columns .column img { max-width: 100%; max-height: 56vh; width: auto; height: auto; }
+.reveal .slides .r-stretch { max-height: 56vh !important; }
+/* opt-in taller charts (wrap a chart in ::: {.tallfig}) */
+.reveal .slides .tallfig img,
+.reveal .slides .tallfig .r-stretch { max-height: 68vh !important; }
+</style>
+<script>
+// Start slide numbering at the Agenda: the title slide (index 0) shows no
+// number, the Agenda (index 1) shows "1", and so on.
+document.addEventListener('DOMContentLoaded', function () {
+  var iv = setInterval(function () {
+    if (window.Reveal && Reveal.isReady && Reveal.isReady()) {
+      clearInterval(iv);
+      Reveal.configure({
+        slideNumber: function (slide) {
+          var h = Reveal.getIndices(slide).h;
+          return h < 1 ? '' : String(h);
+        }
+      });
+    }
+  }, 100);
+});
+</script>
