@@ -15,7 +15,7 @@ $font-family-sans-serif: "Inter", "Segoe UI", Arial, sans-serif;
 $font-family-monospace:  "JetBrains Mono", monospace;
 
 $presentation-heading-color: $primary;
-$presentation-font-size-root: 26px;
+$presentation-font-size-root: 23px;
 
 /*-- scss:rules --*/
 
@@ -40,7 +40,7 @@ $presentation-font-size-root: 26px;
   color: $body-color;
 }
 
-// (continued rules)
+/*-- scss:rules --*/
 
 .reveal .medium {
   font-size: 0.9em; /* 90% of base size */
@@ -112,30 +112,29 @@ $presentation-font-size-root: 26px;
   width: 95%;
 }
 
-// Notes column beside charts (60/40 slide layout)
-.reveal .note-col {
-  font-size: 0.62em;
-  background: #F4FAF9;
-  border-left: 4px solid #047B77;
-  border-radius: 0 8px 8px 0;
-  padding: 0.9em 1em 0.9em 1.1em;
-  margin-top: 2.6em;          // aligns roughly with the chart area below tabs
-  line-height: 1.45;
-}
-.reveal .note-col strong {
-  color: #047B77;
-}
-.reveal .note-col ul {
-  margin-top: 0.4em;
-  padding-left: 1.1em;
-}
-.reveal .note-col li {
-  margin-bottom: 0.45em;
+.reveal pre code {
+  background: transparent;
+  box-shadow: none;
+  font-size: 1em;
+  line-height: 1.35;
+  display: block;
+  white-space: pre-wrap;   // wraps long lines instead of scrolling
+  word-wrap: break-word;
 }
 
-// keep charts fitting inside the 60% column
-.reveal .columns .column img {
-  max-width: 100%;
-  height: auto;
-  max-height: 520px;
+// Inline code
+.reveal code:not(pre code) {
+  background: #f3f3f5;
+  color: $primary;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
 }
+
+// Bullet point color
+.reveal ul li::marker {
+  color: $primary;
+}
+
+// ─── Keyword emphasis ───
+// Bold key terms are auto-colored in the brand teal on normal content slides.
+// (Section dividers use the .center class and keep their white/dark styling.

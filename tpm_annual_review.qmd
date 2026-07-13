@@ -27,10 +27,15 @@ execute:
 
 ```{r setup}
 #| include: false
-# Interactive charts are built from TPM_data.xlsx at render time.
-# Required packages: readxl, dplyr, tidyr, ggplot2, plotly, forcats, scales
+# Charts are built from TPM_data.xlsx at render time and drawn as static images.
+# Required packages: readxl, dplyr, tidyr, ggplot2, forcats, scales
 library(readxl); library(dplyr); library(tidyr); library(ggplot2)
-library(plotly); library(forcats); library(scales)
+library(forcats); library(scales)
+
+# Static figure defaults: a 16:9-friendly aspect so every chart fits the slide
+# with no scrollbar (paired with the image CSS in the HTML block below).
+knitr::opts_chunk$set(dev = "png", dpi = 200, fig.align = "center",
+                      fig.width = 11.5, fig.height = 5.4)
 
 SRC <- if (file.exists("TPM_data.xlsx")) "TPM_data.xlsx" else "../TPM_data.xlsx"
 
@@ -41,14 +46,18 @@ GREY <- "#94a3b8"; GREYL <- "#cbd5e1"; WARN <- "#F59E0B"; RED <- "#EF4444"
 TEXTC <- "#1f2933"; MUTED <- "#475569"
 mlab <- function(x) format(as.Date(x), "%b-%y")
 
-theme_c4ed <- function(base_size = 13) {
+theme_c4ed <- function(base_size = 16) {
   theme_minimal(base_size = base_size) +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major = element_line(colour = "#e2e8f0",
                                           linewidth = 0.4),
-          axis.text = element_text(colour = TEXTC),
-          axis.title = element_text(colour = TEXTC),
+          axis.text = element_text(colour = TEXTC, face = "bold"),
+          axis.title = element_text(colour = TEXTC, face = "bold"),
           legend.position = "top", legend.title = element_blank(),
+          legend.text = element_text(face = "bold"),
+          strip.text = element_text(face = "bold", colour = TEXTC),
+          axis.line = element_line(colour = GREY, linewidth = 0.5),
+          axis.ticks = element_line(colour = GREY, linewidth = 0.5),
           plot.background = element_rect(fill = "white", colour = NA))
 }
 
@@ -57,11 +66,11 @@ theme_c4ed <- function(base_size = 13) {
 # width is left unset so each chart fills 100% of its column or slide and sits
 # flush left. A small resize hook (the HTML block just before "## Agenda")
 # redraws any chart that starts life in a hidden tab.
-intify <- function(p, tip = "text", h = 400, w = NULL) {
-  ggplotly(p, tooltip = tip, height = h) |>
-    config(displayModeBar = FALSE, responsive = TRUE) |>
-    layout(autosize = TRUE,
-           font = list(family = "Source Sans Pro, Calibri, sans-serif"))
+intify <- function(p, tip = "text", h = NULL, w = NULL) {
+  # Charts render as STATIC images (no plotly), so every chart scales to fit the
+  # slide and never shows a scrollbar. The `text` aesthetic used for the old
+  # tooltips is ignored by ggplot; tip/h/w are accepted but unused.
+  p
 }
 
 # x-position for a label placed AFTER a bar end: plotly centres text on its
@@ -77,7 +86,7 @@ mlv <- mlab(mp$Month)
 
 wr <- read_excel(SRC, sheet = "weekly_reports"); names(wr) <- trimws(names(wr))
 day_levels <- c("Monday", "Tuesday", "Wednesday")
-day_cols <- c(Monday = PRIMARY, Tuesday = MINT, Wednesday = AMBER)
+day_cols <- c(Monday = PRIMARY, Tuesday = MINT, Wednesday = BLUE)
 wr2 <- wr |>
   mutate(across(all_of(day_levels), ~replace_na(.x, 0)),
          total = Monday + Tuesday + Wednesday) |>
@@ -100,19 +109,128 @@ mids <- c(`1-10 days` = 5.5, `11-15 days` = 13, `16-20 days` = 18,
           `21-25 days` = 23, `26-31 days` = 28.5)
 bcols <- c(`1-10 days` = PRIMARY, `11-15 days` = BLUE, `16-20 days` = MINT,
            `21-25 days` = AMBER, `26-31 days` = RED)
-mr_l <- mr |>
-  pivot_longer(all_of(buckets), names_to = "bucket", values_to = "v") |>
-  filter(!is.na(v)) |>
-  mutate(m = mlab(Month), mid = mids[bucket],
-         lcol = ifelse(bcols[bucket] %in% c(MINT, AMBER, PALE),
-                       TEXTC, bcols[bucket])) |>
-  mutate(my = rev(row_number()))
 
-qr <- read_excel(SRC, sheet = "quarter_reports") |>
-  mutate(on_time = !is.na(`less than 1 month`),
-         lab = sprintf("Q%d (%s)", Quarter,
-                       ifelse(on_time, "within 1 month", "after 1 month")),
+# helper: find an "actual days" column (numeric, not a known/legacy column;
+# a name containing "day" is preferred).
+find_day_col <- function(df, known) {
+  cand <- setdiff(names(df), known)
+  cand <- cand[vapply(df[cand], is.numeric, logical(1))]
+  if (!length(cand)) return(NA_character_)
+  pref <- cand[grepl("day", cand, ignore.case = TRUE)]
+  if (length(pref)) pref[[1]] else cand[[1]]
+}
+
+mr_daycol <- find_day_col(mr, c("Month", buckets))
+mr_actual <- if (!is.na(mr_daycol)) {
+  mr |>
+    transmute(Month, days = suppressWarnings(as.numeric(.data[[mr_daycol]]))) |>
+    filter(!is.na(days)) |>
+    mutate(m = mlab(Month), my = rev(row_number()))
+} else NULL
+
+mr_l <- if (all(buckets %in% names(mr))) {
+  mr |>
+    pivot_longer(all_of(buckets), names_to = "bucket", values_to = "v") |>
+    filter(!is.na(v)) |>
+    mutate(m = mlab(Month), mid = mids[bucket],
+           lcol = ifelse(bcols[bucket] %in% c(MINT, AMBER, PALE),
+                         TEXTC, bcols[bucket])) |>
+    mutate(my = rev(row_number()))
+} else NULL
+
+# monthly timeliness: actual days after month end when available, else the
+# legacy bracket-midpoint view. 10-day target shown as a dashed line.
+plot_monthly <- function() {
+  if (!is.null(mr_actual)) {
+    d <- mr_actual |> mutate(late = days > 10)
+    p <- ggplot(d, aes(days, my, fill = late)) +
+      geom_col(width = 0.78) +
+      geom_text(aes(label = sprintf("%d days", as.integer(days))),
+                hjust = -0.15, fontface = "bold", size = 4.6, colour = TEXTC) +
+      geom_vline(xintercept = 10, colour = SECONDARY, linetype = "dashed",
+                 linewidth = 0.8) +
+      scale_fill_manual(values = c(`FALSE` = PRIMARY, `TRUE` = AMBER),
+                        breaks = c(FALSE, TRUE),
+                        labels = c("Within 10-day target",
+                                   "Late (over 10 days)"), name = NULL) +
+      scale_x_continuous(expand = expansion(mult = c(0, 0.16))) +
+      scale_y_continuous(breaks = d$my, labels = d$m) +
+      labs(x = NULL, y = NULL) +
+      theme_c4ed() + theme(panel.grid.major.y = element_blank())
+    return(intify(p))
+  }
+  p <- ggplot(mr_l) +
+    geom_rect(aes(xmin = 0, xmax = mid, ymin = my - 0.31, ymax = my + 0.31,
+                  fill = bucket)) +
+    geom_text(aes(lab_x(mid, bucket, 39), my, label = bucket, colour = lcol),
+              fontface = "bold", size = 3.8) +
+    geom_vline(xintercept = 10, colour = SECONDARY, linetype = "dashed",
+               linewidth = 0.7) +
+    annotate("text", x = lab_x(10, "Target: within 10 days", 39),
+             y = max(mr_l$my) + 0.75, label = "Target: within 10 days",
+             colour = SECONDARY, fontface = "bold", size = 3.8) +
+    scale_fill_manual(values = bcols, guide = "none") +
+    scale_colour_identity() +
+    scale_x_continuous(limits = c(0, 29)) +
+    scale_y_continuous(breaks = mr_l$my, labels = mr_l$m) +
+    labs(x = NULL, y = NULL) +
+    theme_c4ed() + theme(panel.grid.major.y = element_blank())
+  intify(p)
+}
+
+qr_raw <- read_excel(SRC, sheet = "quarter_reports")
+qr <- qr_raw |>
+  mutate(on_time = if ("less than 1 month" %in% names(qr_raw))
+                     !is.na(`less than 1 month`) else NA,
+         lab = sprintf("Q%d", Quarter),
          col = ifelse(on_time, PRIMARY, AMBER))
+qr_daycol <- find_day_col(qr_raw, c("Quarter", "Activities",
+                                    "less than 1 month", "more than 1 month"))
+qr_actual <- if (!is.na(qr_daycol)) {
+  qr_raw |>
+    mutate(days = suppressWarnings(as.numeric(.data[[qr_daycol]]))) |>
+    filter(!is.na(days))
+} else NULL
+
+# quarterly timeliness: the previous within/after one-month bracket view
+# (kept per request; clearer than plotting a single 90-day bar).
+plot_quarterly <- function() {
+  qt <- qr |>
+    mutate(qy = rev(row_number()),
+           mid = ifelse(on_time, 0.5, 1.5),
+           ylab = sprintf("Q%d (%d activities)", Quarter, Activities))
+  # append the exact submission days recorded in the sheet, when available
+  base_lab <- ifelse(qt$on_time, "submitted within 1 month",
+                     "submitted after 1 month")
+  if (!is.null(qr_actual)) {
+    dd <- qr_actual |> transmute(Quarter, days = as.integer(days))
+    qt <- qt |> left_join(dd, by = "Quarter")
+    qt$tlab <- ifelse(!is.na(qt$days),
+                      sprintf("%s (%d days)", base_lab, qt$days), base_lab)
+  } else {
+    qt$tlab <- base_lab
+  }
+  p <- ggplot(qt) +
+    geom_rect(aes(xmin = 0, xmax = mid, ymin = qy - 0.25, ymax = qy + 0.25,
+                  fill = on_time)) +
+    geom_text(aes(x = lab_x(mid, tlab, 3.2), y = qy, label = tlab,
+                  colour = ifelse(on_time, SECONDARY, WARN)),
+              fontface = "bold", size = 4.2) +
+    geom_vline(xintercept = 1, colour = SECONDARY, linetype = "dashed",
+               linewidth = 0.8) +
+    annotate("text", x = lab_x(1, "Standard: within 1 month", 3.2),
+             y = max(qt$qy) + 0.55, label = "Standard: within 1 month",
+             colour = SECONDARY, fontface = "bold", size = 4) +
+    scale_fill_manual(values = c(`TRUE` = PRIMARY, `FALSE` = WARN),
+                      guide = "none") +
+    scale_colour_identity() +
+    scale_x_continuous(limits = c(0, 3.0), breaks = 0:2,
+                       labels = c("0", "1 month", "2 months")) +
+    scale_y_continuous(breaks = qt$qy, labels = qt$ylab, limits = c(0.4, 3)) +
+    labs(x = NULL, y = NULL) +
+    theme_c4ed() + theme(panel.grid.major.y = element_blank())
+  intify(p)
+}
 
 # ---- PDM by activity (donor chart, horizontal dodged bars by region) ----
 # Data comes from the "PDM" sheet via read_tworow_sheet() (defined below). If
@@ -481,9 +599,142 @@ plot_coverage_region <- function(region) {
       plot.margin = margin(8, 14, 16, 14))
 }
 
+# ---- PDM as dodged bars: FMA count by WFP sub office (region) and month ----
+# Aggregates the per-activity monitor counts into a total FMA count per region
+# per month, drawn as STACKED vertical bars (months on the x-axis, WFP sub
+# offices stacked within each month), per the Country Office request.
+pdm_region_cols <- c("Bahir Dar (BDR)" = PRIMARY, "Dessie" = BLUE,
+                     "Mekelle" = AMBER, "Assosa" = MINT)
+plot_pdm_bars <- function(h = 500) {
+  d <- pdm_data |>
+    group_by(Month, Region) |>
+    summarise(FMAs = sum(Monitors), .groups = "drop") |>
+    mutate(Month = factor(as.character(Month), levels = pdm_month_order))
+  p <- ggplot(d, aes(Month, FMAs, fill = Region)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = FMAs), position = position_stack(vjust = 0.5),
+              size = 4.2, fontface = "bold", colour = "white") +
+    scale_fill_manual(values = pdm_region_cols, name = "WFP sub office:") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.06))) +
+    labs(x = NULL, y = "Assigned field monitors (FMAs)") +
+    theme_c4ed() +
+    theme(panel.grid.major.x = element_blank())
+  intify(p, h = h)
+}
+
+# PDM as dodged (grouped) bars: same data, sub offices side by side per month
+plot_pdm_dodge <- function() {
+  d <- pdm_data |>
+    group_by(Month, Region) |>
+    summarise(FMAs = sum(Monitors), .groups = "drop") |>
+    mutate(Month = factor(as.character(Month), levels = pdm_month_order))
+  p <- ggplot(d, aes(Month, FMAs, fill = Region)) +
+    geom_col(position = position_dodge2(preserve = "single", padding = 0.1),
+             width = 0.85) +
+    geom_text(aes(label = FMAs),
+              position = position_dodge2(width = 0.85, preserve = "single"),
+              vjust = -0.35, size = 4.2, fontface = "bold", colour = TEXTC) +
+    scale_fill_manual(values = pdm_region_cols, name = "WFP sub office:") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+    labs(x = NULL, y = "Assigned field monitors (FMAs)") +
+    theme_c4ed() +
+    theme(panel.grid.major.x = element_blank())
+  intify(p)
+}
+
+# ---- coverage aggregated to WFP activities ----
+# Program-to-activity mapping supplied by the Country Office: TSFP, GFD and NN
+# are Activity 2; SFP is Activity 4; FFV is Activity 6; R4 and Resilience are
+# Activity 5; and everything monitored in Asossa is Activity 3.
+cov_activity_map <- function(Program, Location) {
+  case_when(
+    Location == "Asossa" ~ "Act. 3",
+    Program %in% c("TSFP", "GFD", "NN", "Refugee GFD & NN") ~ "Act. 2",
+    Program == "SFP" ~ "Act. 4",
+    Program == "FFV" ~ "Act. 6",
+    Program %in% c("R4", "Resilience") ~ "Act. 5",
+    Program == "SF" ~ "Act. 3",
+    TRUE ~ "Other")
+}
+act_cols <- c("Act. 2" = PRIMARY, "Act. 3" = AMBER, "Act. 4" = BLUE,
+              "Act. 5" = "#B23A48", "Act. 6" = SECONDARY, "Other" = GREY)
+
+# coverage for one sub office: monitoring reports per month grouped by activity
+# as dodged bars, with a count on each bar.
+plot_coverage_region_act <- function(region, h = 440) {
+  d <- cov_long |>
+    filter(Location == region) |>
+    mutate(Activity = cov_activity_map(Program, Location)) |>
+    group_by(m, Activity) |>
+    summarise(Value = sum(Value), .groups = "drop") |>
+    mutate(Activity = factor(Activity, levels = names(act_cols)))
+  p <- ggplot(d, aes(m, Value, fill = Activity,
+                     text = sprintf("%s<br>%s<br>%s: %s reports",
+                                    region, m, Activity, Value))) +
+    geom_col(position = position_dodge2(preserve = "single", padding = 0.1),
+             width = 0.85) +
+    geom_text(aes(label = Value),
+              position = position_dodge2(width = 0.85, preserve = "single"),
+              vjust = -0.35, size = 3.8, fontface = "bold", colour = TEXTC) +
+    scale_fill_manual(values = act_cols, name = "Activity:", drop = TRUE) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+    labs(title = region, x = NULL, y = "Monitoring reports") +
+    theme_c4ed() +
+    theme(panel.grid.major.x = element_blank(),
+          plot.title = element_text(face = "bold", size = 18,
+                                    colour = "#0F172A"),
+          axis.text.x = element_text(angle = 45, hjust = 1))
+  intify(p, h = h)
+}
+
+# ---- overall budget split: expense, forecast, remainder ----
+# Shares of the total budget already spent (expense), expected to be spent
+# (forecast) and still unspent (remainder). `hole = 0` gives the pie variant.
+plot_budget_overall <- function(hole = 0.35) {
+  x0 <- if (hole > 0) 2 else 0
+  parts <- tibble(
+    part = factor(c("Expense", "Forecast", "Remainder"),
+                  levels = c("Expense", "Forecast", "Remainder")),
+    value = c(sum(bd$Expense), sum(bd$Forecast), sum(bd$Remainder))) |>
+    mutate(pct = value / sum(value) * 100,
+           ymax = cumsum(value), ymin = lag(ymax, default = 0),
+           mid = (ymax + ymin) / 2,
+           small = value == min(value),
+           inlab = sprintf("%s\n%.1f%%", part, pct),
+           outlab = sprintf("%s: %.1f%%", part, pct),
+           tcol = ifelse(part == "Remainder", TEXTC, "white"))
+  ggplot(parts) +
+    geom_rect(aes(xmin = x0, xmax = 4, ymin = ymin, ymax = ymax, fill = part),
+              colour = "white", linewidth = 1.2) +
+    # larger slices labelled inside
+    geom_text(data = function(d) d[!d$small, ],
+              aes(x = (x0 + 4) / 2, y = mid, label = inlab, colour = tcol),
+              fontface = "bold", size = 5.5, lineheight = 0.9) +
+    # smallest slice labelled outside, with an arrow pointing to it
+    geom_segment(data = function(d) d[d$small, ],
+                 aes(x = 4.75, xend = 4.05, y = mid, yend = mid),
+                 arrow = arrow(length = unit(0.22, "cm")),
+                 linewidth = 0.8, colour = TEXTC) +
+    geom_text(data = function(d) d[d$small, ],
+              aes(x = 4.85, y = mid, label = outlab),
+              fontface = "bold", size = 5, colour = TEXTC, hjust = 0) +
+    coord_polar(theta = "y") +
+    xlim(0, 5.6) +
+    scale_fill_manual(values = c(Expense = PRIMARY, Forecast = BLUE,
+                                 Remainder = GREYL), name = NULL) +
+    scale_colour_identity() +
+    labs(x = NULL, y = NULL) +
+    theme_void(base_size = 16) +
+    theme(legend.position = "bottom",
+          legend.text = element_text(face = "bold"))
+}
+plot_budget_overall_pie <- function() plot_budget_overall(hole = 0)
+
 # tidy up ggplotly legends: strip the "(Name,1,NA)" tuples down to "Name"
 # and keep a single entry per label
 clean_legend <- function(gg) {
+  # pass static ggplots straight through (only plotly widgets have $x$data)
+  if (is.null(gg$x) || is.null(gg$x$data)) return(gg)
   d <- gg$x$data
   seen <- character(0)
   for (i in seq_along(d)) {
@@ -528,21 +779,54 @@ clean_legend <- function(gg) {
 .reveal div.plotly.html-widget,
 .reveal .plotly { width: 100% !important; max-width: 100% !important; }
 
-/* Static chart images fit within the slide or column, keeping aspect ratio,
-   so they never require left-to-right scrolling. */
-.reveal .slides img { max-width: 100%; height: auto; }
-.reveal .panel-tabset img { max-width: 100%; max-height: 74vh; width: auto; height: auto; margin: 0 auto; display: block; }
-.reveal .columns .column img { max-width: 100%; height: auto; max-height: 74vh; }
+/* Static chart images fit within the slide in BOTH directions (width and
+   height), keeping aspect ratio, so no scrollbar ever appears. */
+.reveal .slides img { max-width: 100%; max-height: 68vh; width: auto; height: auto; margin: 0 auto; display: block; }
+.reveal .panel-tabset img { max-width: 100%; max-height: 62vh; width: auto; height: auto; margin: 0 auto; display: block; }
+.reveal .columns .column img { max-width: 100%; max-height: 68vh; width: auto; height: auto; }
+/* keep the reveal auto-stretch from forcing an oversized height */
+.reveal .slides .r-stretch { max-height: 68vh !important; }
 </style>
 ```
 
 ## Agenda
 
+- Introduction
 - Completeness and timeliness of records
 - Review of reporting processes, gaps, and improvement opportunities
 - Coverage and data quality
 - Compliance with WFP policies
 - Budget review, including current pressures and cost drivers
+
+
+## Introduction: The TPM Assignment at a Glance
+
+**Who we are**
+
+- C4ED: Center for Evaluation and Development
+- Independent third-party monitoring (TPM) partner
+
+**What we monitor**
+
+- WFP food assistance
+- Live distribution and post-distribution monitoring (PDM)
+- Early warning, warehouse, market monitoring, livelihood and nutrition-related activities
+- Across Amhara, Tigray and Benishangul-Gumuz
+
+## Year 1 at a Glance
+
+- **62** monitors deployed (3 RMCs + 2 AMCs + 60 FMAs)
+- **3** regions covered: Amhara, Tigray, Benishangul-Gumuz
+- **42+** weekly flash / hot-button reports delivered
+
+**Full reporting cadence sustained throughout the year:**
+
+- Monthly monitoring plans, narrative and expenditure reports submitted on schedule
+- Quarterly process and outcome monitoring reports (MoDA) delivered
+- Coordination maintained with WFP HQ, Sub/Area-Offices
+- Shared experiences and lessons with fellow TPM partner (JaRco)
+
+**How we work:** weekly-to-quarterly reporting pipeline to WFP
 
 ## Monthly monitoring plans
 
@@ -550,9 +834,6 @@ clean_legend <- function(gg) {
 
 ### Plan matrix 
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 hub_cols_mp <- c("Bahir Dar" = PRIMARY, "Dessie" = BLUE,
@@ -583,9 +864,7 @@ p <- ggplot(mpl, aes(mx, hy,
 intify(p, h = 330, w = 680)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - All four duty stations submitted a monitoring plan in every month they were operational.
 - Bahir Dar, Dessie, and Mekelle have been active since September 2025; Asossa started in December 2025.
@@ -593,14 +872,10 @@ intify(p, h = 330, w = 680)
 
 :::
 
-:::
 
 
 ### Active months 
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 cap <- mp |>
@@ -619,25 +894,20 @@ p <- ggplot(cap) +
   scale_fill_manual(values = hub_cols_mp, guide = "none") +
   scale_x_continuous(limits = c(0, 12), breaks = seq(0, 10, 2)) +
   scale_y_continuous(breaks = cap$hy, labels = cap$hub) +
-  labs(x = "Months with a monitoring plan (of 10)", y = NULL) +
+  labs(x = NULL, y = NULL) +
   theme_c4ed() +
   theme(panel.grid.major.y = element_blank())
 intify(p, h = 430, w = 680)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - Bahir Dar, Dessie, and Mekelle each produced a plan in all 10 months of the period.
 - Asossa produced plans in 7 of 10 months, reflecting its later December start.
 - No operational month is missing a plan, so planning coverage is complete.
 
-
-
 :::
 
-:::
 
 
 
@@ -645,11 +915,10 @@ intify(p, h = 430, w = 680)
 
 ## Weekly hot button/flash reports
 
-::: {.columns}
-
-::: {.column width="65%"}
 
 ```{r}
+#| fig-width: 12.5
+#| fig-height: 5.6
 p <- ggplot() +
   geom_rect(data = filter(wl, n > 0),
             aes(xmin = left, xmax = right, ymin = my - 0.31,
@@ -671,180 +940,116 @@ p <- ggplot() +
   scale_x_continuous(labels = percent, limits = c(0, 1.55),
                      breaks = c(0, 0.25, 0.5, 0.75, 1)) +
   scale_y_continuous(breaks = wr2$my, labels = wr2$m) +
-  labs(x = "Share of weekly reports by submission day", y = NULL) +
+  labs(x = NULL, y = NULL) +
   theme_c4ed() +
   theme(panel.grid.major.y = element_blank())
 intify(p, w = 500)
 ```
 
-:::
-
-::: {.column .expl width="35%"}
+::: {.content-visible when-profile="wfp"}
 
 - Across the year 44 weekly reports were submitted, of which 24 (55%) arrived on Monday, the on-time day.
 - Another 17 came on Tuesday (one day late) and 3 on Wednesday (two days late).
 - Timeliness slipped from March onward, when Tuesday submissions began to outnumber Monday ones.
 
-
 :::
 
-:::
 
 
 ## Monthly narrative and expenditure reports
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
-p <- ggplot(mr_l) +
-  geom_rect(aes(xmin = 0, xmax = mid, ymin = my - 0.31, ymax = my + 0.31,
-                fill = bucket,
-                text = sprintf("%s report: submitted %s after month end",
-                               m, bucket))) +
-  geom_text(aes(lab_x(mid, bucket, 39), my, label = bucket, colour = lcol),
-            fontface = "bold", size = 3.8) +
-  geom_vline(xintercept = 10, colour = SECONDARY, linetype = "dashed",
-             linewidth = 0.7) +
-  annotate("text", x = lab_x(10, "Target: within 10 days", 39),
-           y = max(mr_l$my) + 0.75,
-           label = "Target: within 10 days", colour = SECONDARY,
-           fontface = "bold", size = 3.8) +
-  scale_fill_manual(values = bcols, guide = "none") +
-  scale_colour_identity() +
-  scale_x_continuous(limits = c(0, 28)) +
-  scale_y_continuous(breaks = mr_l$my, labels = mr_l$m) +
-  labs(x = "Days after month end until submission (bracket midpoint)",
-       y = NULL) +
-  theme_c4ed() +
-  theme(panel.grid.major.y = element_blank())
-intify(p, w = 680)
+plot_monthly()
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - The standard is submission within 10 days of month end, shown by the dashed line.
 - Only 4 of 10 monthly reports (November, March, April, June) met the 10-day target.
 - The other 6 were late, with September and February slipping past 26 days.
 
-
 :::
 
-:::
 
 
 ## Process and outcome monitoring reports
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
-qt <- qr |>
-  mutate(qy = rev(row_number()),
-         mid = ifelse(on_time, 0.5, 1.5),
-         tlab = ifelse(on_time, "submitted within 1 month",
-                       "submitted after 1 month"),
-         ylab = sprintf("Q%d (%d activities)", Quarter, Activities))
-p <- ggplot(qt) +
-  geom_rect(aes(xmin = 0, xmax = mid, ymin = qy - 0.25, ymax = qy + 0.25,
-                fill = on_time,
-                text = sprintf("Q%d report (%d activities): %s",
-                               Quarter, Activities, tlab))) +
-  geom_text(aes(x = lab_x(mid, tlab, 2.4), y = qy, label = tlab,
-                colour = ifelse(on_time, SECONDARY, WARN)),
-            fontface = "bold", size = 4.2) +
-  geom_vline(xintercept = 1, colour = SECONDARY, linetype = "dashed",
-             linewidth = 0.8) +
-  annotate("text", x = lab_x(1, "Standard: within 1 month", 2.4),
-           y = max(qt$qy) + 0.55, label = "Standard: within 1 month",
-           colour = SECONDARY, fontface = "bold", size = 4) +
-  scale_fill_manual(values = c(`TRUE` = PRIMARY, `FALSE` = WARN),
-                    guide = "none") +
-  scale_colour_identity() +
-  scale_x_continuous(limits = c(0, 2.2), breaks = 0:2,
-                     labels = c("0", "1 month", "2 months")) +
-  scale_y_continuous(breaks = qt$qy, labels = qt$ylab,
-                     limits = c(0.4, 3)) +
-  labs(x = "Time to submission after quarter end (bracket midpoint shown)",
-       y = NULL) +
-  theme_c4ed() +
-  theme(panel.grid.major.y = element_blank())
-intify(p, h = 430, w = 680)
+plot_quarterly()
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - The Q1 report (4 activities) was submitted within one month of quarter end, meeting the standard.
 - The Q4 report (3 activities) was submitted after one month, missing it.
 - With only two quarters reported, the record is mixed and worth watching.
 
-
-
 :::
 
-:::
-
-## Post-Distribution Monitoring (PDM) deployments
-
-```{r}
-#| fig-width: 13.2
-#| fig-height: 6.6
-plot_pdm_donor()
-```
 
 ## Review of reporting processes
 
-- Weekly report: FMAs are active in flagging issues; Regional and Monitoring Coordinators play a key role in the follow-up; compilation by Management/Support staff.
-- Monthly report: feedback?
-- Quarterly report: data structure challenges; properly addressing the needs of the Country Office.
-- Dashboard solution to address needs; requirement: granting more frequent access to the data.
+- **Weekly Reports:** Robust collection system is well-established; compiled reports are typically submitted to WFP by Monday deadlines.
+- **Monthly Reports:** On track despite occasional late submissions. Next step is integrating FMA activity monitoring data to enhance overall reporting depth.
+- **Quarterly Reports:** Current timeline (uploads around the 8th) strains processing schedules.
+    - **Request 1:** Move the WFP upload to the 2nd working day of the month.
+    - **Request 2:** Increase upload frequency from quarterly to monthly. This allows rapid adaptation to checklist changes and would enable MoDA data cross-verification with FMA activity logs.
+    - **Suggestion:** Can be complemented by dashboards to maximize utility.
 
 ## Coverage and data quality
 
 ::: {.panel-tabset}
 
-### Trends (lines)
-
-```{r}
-plot_coverage_lines()
-```
-
 ### Bahir Dar
 
 ```{r}
-#| fig-width: 13.2
-#| fig-height: 5.2
-plot_coverage_region("Bahir Dar")
+plot_coverage_region_act("Bahir Dar")
 ```
 
 ### Dessie
 
 ```{r}
-#| fig-width: 13.2
-#| fig-height: 5.2
-plot_coverage_region("Dessie")
+plot_coverage_region_act("Dessie")
 ```
 
 ### Mekelle
 
 ```{r}
-#| fig-width: 13.2
-#| fig-height: 5.2
-plot_coverage_region("Mekelle")
+plot_coverage_region_act("Mekelle")
 ```
 
 ### Asossa
 
 ```{r}
-#| fig-width: 13.2
-#| fig-height: 5.2
-plot_coverage_region("Asossa")
+plot_coverage_region_act("Asossa")
+```
+
+:::
+
+## Post-Distribution Monitoring (PDM) deployments
+
+::: {.panel-tabset}
+
+### By sub office (grouped)
+
+```{r}
+plot_pdm_dodge()
+```
+
+### By sub office (stacked)
+
+```{r}
+plot_pdm_bars()
+```
+
+### By activity (previous)
+
+```{r}
+#| fig-width: 12
+#| fig-height: 6
+plot_pdm_donor()
 ```
 
 :::
@@ -852,9 +1057,6 @@ plot_coverage_region("Asossa")
 ## Staffing and deployment
 
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 dep <- read_excel(SRC, sheet = "deployment") |>
@@ -881,18 +1083,14 @@ p <- ggplot(dep_l, aes(m, n, fill = role, group = role,
 intify(p, w = 680)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - FMA deployment stayed high all year, ranging from about 56 to 64 field monitors per month.
 - Regional Monitoring Coordinators held steady at 3, while Area Monitoring Coordinators grew from 0 to 2.
 - The stable field workforce supports consistent monitoring coverage.
 
-
 :::
 
-:::
 
 ## Training provided
 
@@ -900,9 +1098,6 @@ intify(p, w = 680)
 
 ### By event 
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 p <- ggplot(tr_a, aes(x, Days, fill = Type,
@@ -922,25 +1117,18 @@ p <- ggplot(tr_a, aes(x, Days, fill = Type,
 intify(p, w = 690)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - Four training events were delivered over the year, totaling 29 training days.
 - Events 1 and 2 were basic training for new monitors in Adama, Mekelle, Dessie, and Asossa.
 - Event 3 combined CP cooperation and refresher sessions; Event 4 was a refresher round across four hubs.
 
-
 :::
 
-:::
 
 
 ### By month (horizontal)
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 tr_h <- tr |>
@@ -959,15 +1147,13 @@ p <- ggplot(tr_h) +
                     breaks = c("Basic", "Refresher", "CP cooperation")) +
   scale_x_continuous(limits = c(0, 9), breaks = 0:6) +
   scale_y_continuous(breaks = tr_h$ry, labels = tr_h$ylab) +
-  labs(x = "Training days", y = NULL) +
+  labs(x = NULL, y = NULL) +
   theme_c4ed() +
   theme(panel.grid.major.y = element_blank())
 intify(p, w = 680)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - This view lists each session by location and month, colored by training type.
 
@@ -975,23 +1161,16 @@ intify(p, w = 680)
 
 - Refresher training led the later events in February and May, keeping monitors current.
 
-
 :::
 
-:::
 
 
 :::
 
 ## Management/support staff travel
 
-::: {.panel-tabset}
 
-### Travel by Month
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 p <- ggplot(agg) +
@@ -1016,38 +1195,27 @@ p <- ggplot(agg) +
   scale_x_continuous(limits = c(0, max(agg$days) + 3),
                      breaks = seq(0, max(agg$days) + 4, 4)) +
   scale_y_continuous(breaks = agg$ty, labels = agg$lab) +
-  labs(x = "Total staff travel days (person-days)", y = "Travel number") +
+  labs(x = NULL, y = "Travel number") +
   theme_c4ed() +
   theme(panel.grid.major.y = element_blank())
 intify(p, w = 680)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - Management and support staff made 13 monitoring trips totaling 78 person-days.
 - The largest single mobilization was the September visit to Adama (16 person-days, 4 staff).
 - One May trip to Asossa records staff assigned but 0 days, which may warrant a data check.
 
-
-:::
-
 :::
 
 
-:::
+
 
 
 ## Equipment
 
-::: {.panel-tabset}
 
-### By item 
-
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 p <- ggplot(eq_tot,
@@ -1063,51 +1231,88 @@ p <- ggplot(eq_tot,
   scale_fill_manual(values = item_cols, guide = "none") +
   scale_x_continuous(limits = c(0, 135)) +
   scale_y_continuous(breaks = eq_tot$iy, labels = eq_tot$item) +
-  labs(x = "Units procured and distributed", y = NULL) +
+  labs(x = NULL, y = NULL) +
   theme_c4ed() +
   theme(panel.grid.major.y = element_blank())
 intify(p, w = 680)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
-
-- Equipment procurement was one-off rather than recurring.
-- The largest distributions were 75 vests and 74 tablets to equip field teams.
-- Smaller purchases covered 10 e-bikes, 3 laptops, and 3 printers.
 
 
-:::
+## Compliance review: WFP Anti-Fraud & Anti-Corruption Policy (AFAC)
 
-:::
+We maintain a zero-tolerance policy and strictly comply with WFP's prohibitions against all Prohibited Practices:
 
+- **Fraud, Corruption & Theft:** No misrepresentation for financial/personal advantage, no offering or soliciting bribes to influence actions, and zero tolerance for unauthorized taking of property.
+- **Collusive & Coercive Practices:** No anti-competitive arrangements or improper behavior targeted at influencing WFP or other parties, and no use of threats, harm, or intimidation.
+- **Obstructive Practices:** Full cooperation with official investigations - no destroying, altering, or concealing evidence, making false statements, or impeding WFP's contractual access to information.
+- **Financial Integrity:** Absolute prohibition of **Money Laundering** (concealing illicit funds) and the **Financing of Terrorism** (providing resources to any individuals or entities on the UN Security Council Consolidated List).
 
-:::
+## Compliance review: WFP Anti-Fraud & Anti-Corruption Policy (AFAC)
 
-## Compliance, risk and accountability considerations
+- **Integrity and Accountability:**
+    - FMA (few) claim activity despite facts
+    - Potential issues with transport reimbursement and overnight per diem
+    - In case of dismissal, we sometimes face issues with non-returned tablets (disciplinary issues and legal advisor on HR)
+- **Independence:** Rotation enforced - to keep monitors alerted and to counter the risk of Corruption and Collusive Practices
+- **Professional Skepticism:** High due to large volume of flagged issues (absence of evidence of Obstructive Practices)
+- **Theft:** For example, consumption of WFP nutrition products.
+- **Sensitization** of monitors through training and clear communication by Regional and Area Monitoring Coordinators
 
-- Integrity and accountability: a few FMAs claim activity despite facts; potential issues with transport/overnight cost reimbursement; in case of dismissal, occasional issues with non-returned tablets (disciplinary process and legal advisor on HR).
-- Independence: rotation enforced, to keep monitors alert and to counter the risk of corruption and collusive practices.
-- Professional skepticism: high, given the large volume of flagged issues (absence of evidence of obstructive practices).
-- Sensitization of FMAs on issues of theft (consumption of WFP nutrition products), through training and clear communication by Regional and Area Monitoring Coordinators.
+## Compliance review: Prevention of Sexual Exploitation and Abuse (PSEA)
 
-## Compliance review: WFP policies, data protection, and information security
+We strictly commit to WFP's zero-tolerance policy regarding sexual exploitation and abuse, ensuring full alignment with UN standards and contractual mandates:
 
-- Content to be added.
+- **Internal Policies in Place:** We have established rigorous internal PSEA policies and behavioral standards matching the ethical expectations of WFP's Code of Conduct.
+- **Active Awareness Measures:** We undertake continuous organizational awareness training to ensure all personnel fully understand, prevent, and uphold these mandatory standards.
+- **Accountability & Action:** We maintain strict mechanisms to prevent misconduct, immediately investigate any allegations, and implement rapid corrective actions.
+
+## Compliance review: Data protection
+
+We comply with all data processing, transmission, and privacy mandates as the Processor:
+
+- **Authorized Processing & Purpose:** We process Personal Data strictly under WFP's written instructions, solely for agreed purposes, with no independent business use or proprietary claims.
+- **Secure Data Transfer:** All data transfers utilize 128-bit AES encryption via secure email or SFTP using compliant formats (CSV, XML, JSON).
+- **Operational Transparency & Auditing:** We maintain a detailed record of all processing activities available for WFP review and will immediately flag any violating privacy rules.
+- **Strict Third-Party Restrictions:** No data sharing or third-country/cloud transfers without explicit, prior written authorization from WFP.
+- **90-Day Data Retention Limit:** All Personal Data are securely deleted/destroyed from all physical and digital systems within 90 days of acquisition (or upon request).
+
+## Compliance review: Information security
+
+We comply with all requirements of the WFP Information Security Policy as the Processor:
+
+- **Security Framework:** Maintain an active information security program aligned with industry standards.
+- **Data Protection & Encryption:** Enforce full multifactor authentication (MFA), end-to-end encryption for all data (at rest, on mobile/storage devices, and in transit), and daily backups.
+- **System Resilience:** Guarantee confidentiality, integrity, and availability with established protocols for regular testing, risk-based data governance, and rapid restoration in the event of an incident.
+- **Access Control:** Maintain strict physical and logical access controls, including managed user lifecycles, administrative privilege tracking, and segregation of duties.
+- **Audit & Alignment:** Subject to WFP security reviews/audits and written approval for any core system changes.
 
 ## Budget review
 
 ::: {.panel-tabset}
 
-### Amounts 
+### Overall (donut)
 
-::: {.columns}
+```{r}
+#| fig-width: 8
+#| fig-height: 6.4
+plot_budget_overall()
+```
 
-::: {.column width="70%"}
+### Overall (pie)
+
+```{r}
+#| fig-width: 8
+#| fig-height: 6.4
+plot_budget_overall_pie()
+```
+
+### Amounts
 
 
 ```{r}
+#| fig-width: 12
+#| fig-height: 6.2
 # Prepare data
 bd_o2 <- bd_o |>
   mutate(
@@ -1184,41 +1389,29 @@ p <- ggplot(bd_o2) +
     labels = gsub("Other \\(airtime, travel, laptops, supplies\\)", "Other (airtime, travel,<br>laptops, supplies)", bd_o2$Item),
     expand = expansion(mult = c(0.02, 0.02))) +
 
-  labs(x = "Amount (project currency)", y = NULL) +
+  labs(x = NULL, y = NULL) +
 
   theme_c4ed() +
   theme(
     panel.grid.major.y = element_blank(),
     legend.title = element_blank())
 
-# Cap the left margin so the item-name gutter does not push the bars to the
-# right. ggplotly would otherwise reserve ~324px for the longest label; 190px
-# fits the labels and lets the bars use the reclaimed space on the left.
-intify(p, w = 840) |>
-  layout(margin = list(l = 190))
+intify(p)
 ```
 
-
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - FMA salaries are the largest line at about 294k, followed by transportation and HQ salaries.
 - Two lines are already over budget: training and HQ salaries (red remainder).
 - Most other lines are spending in line with or below budget, with forecast covering the remaining months.
 
-
 :::
 
-:::
 
 
 
 ### By category (percent)
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 p <- ggplot(cat_agg) +
@@ -1259,31 +1452,24 @@ p <- ggplot(cat_agg) +
                      labels = function(v) paste0(v, "%")) +
   scale_y_continuous(breaks = cat_agg$cy, labels = cat_agg$name_pct,
                      limits = c(0.5, 3.75)) +
-  labs(x = "Share of category budget", y = NULL) +
+  labs(x = NULL, y = NULL) +
   theme_c4ed() +
   theme(panel.grid.major.y = element_blank())
 intify(p, w = 680)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - Category 1 (field operations) has used 74 percent of its budget with 17 percent more forecast, leaving a 9 percent cushion.
 - Category 2 (HQ and equipment) is projected about 19 percent over budget once forecast is added.
 - Category 3 (travel) is fully spent at 100 percent of its allocation.
 
-
 :::
 
-:::
 
 
 ### By line item (percent)
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 p <- ggplot(bd_p) +
@@ -1315,24 +1501,20 @@ p <- ggplot(bd_p) +
                      breaks = c(0, 50, 100, 150, 200, 250),
                      labels = function(v) paste0(v, "%")) +
   scale_y_continuous(breaks = bd_p$iy, labels = bd_p$Item) +
-  labs(x = "Share of line budget", y = NULL) +
+  labs(x = NULL, y = NULL) +
   theme_c4ed() +
   theme(panel.grid.major.y = element_blank())
 intify(p, w = 680)
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - Each line is shown as a share of its own budget, with 100 percent marked by the dashed line.
 - Training and HQ salaries cross the 100 percent line, confirming they are over budget.
 - Field lines such as FMA salaries and transport sit below 100 percent, holding a positive remainder.
 
-
 :::
 
-:::
 
 
 
@@ -1340,25 +1522,17 @@ intify(p, w = 680)
 
 ### Amounts (static, with figures)
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ![](charts/11h_budget_expense_forecast_items.png)
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - This static version prints the same expense and forecast figures against each budget line.
 - It is provided for the PDF and print handout, where interactive tooltips are not available.
 - The over-budget training and HQ salary lines remain the key pressure points.
 
-
-
 :::
 
-:::
 
 
 :::
@@ -1370,9 +1544,6 @@ intify(p, w = 680)
 
 ### Monthly detail 
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ```{r}
 fin_l <- fin |>
@@ -1419,9 +1590,7 @@ p <- ggplot() +
 intify(p, w = 680) |> clean_legend()
 ```
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - Monthly spending tracked the monthly budget closely for most of the year.
 - Two months ran over budget: October 2025 (about 11k over) and May 2026 (about 5k over).
@@ -1430,20 +1599,14 @@ intify(p, w = 680) |> clean_legend()
 
 :::
 
-:::
 
 
 ### By category (percent)
 
-::: {.columns}
-
-::: {.column width="70%"}
 
 ![](charts/11g_budget_expense_forecast_percent.png)
 
-:::
-
-::: {.column .expl width="30%"}
+::: {.content-visible when-profile="wfp"}
 
 - This static chart shows expense and forecast as a share of each category budget.
 - Category 2 (HQ and equipment) is the main overrun, while field operations retain a cushion.
@@ -1454,27 +1617,23 @@ intify(p, w = 680) |> clean_legend()
 :::
 
 
-:::
+## Budget review: Current pressures and cost drivers {.smaller}
 
-## Budget review: Current pressures and cost drivers
-
-- Training line projected 123% over its budget; HQ salaries 25% over.
-- Transport: inflated costs and limited availability.
-- Planning of activities and communication with CPs.
-- Security (Amhara region); access to refugee camps (until December 2025).
-- Coordination challenges with the CP.
+- **Transportation & Mobility:** Rising fuel costs, local shortages, and regional transport constraints severely impact field efficiency. While (a limited number of) motorcycles assist monitor teams, current transportation provisions require a strategic review.
+- **DSA Alignment:** Current overnight Daily Subsistence Allowance (DSA) rates are outdated and need adjustments to reflect the increased cost of living and prevailing regional market conditions.
+- **Compensation:** Raised by TPM staff during trainings and review meetings, compensation packages are under pressure and need to be reviewed to ensure retention and motivation.
+- **Uneven/Expanded Scope:** Originally budgeted for mostly process and basic output/outcome monitoring, monitors are managing complex tasks (Outcome Monitoring, PDM, Early Warning, and market assessments).
+- **Staff Capacity Deficits:** In Tigray, insufficient staff due to the reduction from 23 to 15 FMAs. Currently, an overwhelming workload across multiple parallel surveys and process monitoring might compromise data quality and regional coverage.
 
 
 ## {background-color="white" .center}
 
 ::: {style="text-align:center; color:#047B77;"}
 
-
-
 [**Thank you!**]{style="font-size: 3em;"}
-
 
 ::: {style="margin-top: 1.2em; font-size: 0.85em;"}
 C4ED | Center for Evaluation and Development
 :::
+
 :::
