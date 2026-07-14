@@ -20,6 +20,7 @@ format:
     footer: "C4ED | Center for Evaluation and Development"
     center: false
     hash: true
+    scrollable: true
 execute:
   echo: false
   warning: false
@@ -720,14 +721,20 @@ plot_coverage_office_lines <- function() {
     group_by(Location, date, m) |>
     summarise(Value = sum(Value), .groups = "drop") |>
     mutate(Location = factor(Location, levels = cov_levels))
+  grand <- sum(d$Value)
   p <- ggplot(d, aes(date, Value, colour = Location, group = Location)) +
-    geom_line(linewidth = 1.1) +
-    geom_point(size = 2.4) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2) +
     scale_colour_manual(values = cov_office_cols, name = "WFP sub office:") +
     scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
-    labs(x = NULL, y = "Monitoring reports (all activities)") +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
+    labs(title = paste0("Grand total sites visited: ",
+                        formatC(grand, big.mark = ",", format = "d")),
+         x = NULL, y = "Sites visited") +
     theme_c4ed() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          plot.title = element_text(face = "bold", size = 15, hjust = 0.5,
+                                    colour = "#0F172A"))
   intify(p)
 }
 
@@ -747,7 +754,7 @@ plot_budget_overall <- function(hole = 0.35) {
            inlab = sprintf("%s\n%.1f%%", part, pct),
            outlab = sprintf("%s: %.1f%%", part, pct),
            tcol = ifelse(part == "Remainder", TEXTC, "white"))
-  ggplot(parts) +
+  p <- ggplot(parts) +
     geom_rect(aes(xmin = x0, xmax = 4, ymin = ymin, ymax = ymax, fill = part),
               colour = "white", linewidth = 1.2) +
     # larger slices labelled inside
@@ -771,6 +778,16 @@ plot_budget_overall <- function(hole = 0.35) {
     theme_void(base_size = 16) +
     theme(legend.position = "bottom",
           legend.text = element_text(face = "bold"))
+  # total budget shown in the centre of the donut hole
+  if (hole > 0) {
+    p <- p + annotate("text", x = 0, y = 0,
+                      label = paste0("Total budget\n$",
+                                     formatC(sum(bd$Budget), big.mark = ",",
+                                             format = "d")),
+                      size = 5.5, fontface = "bold", colour = TEXTC,
+                      lineheight = 0.95)
+  }
+  p
 }
 plot_budget_overall_pie <- function() plot_budget_overall(hole = 0)
 
@@ -999,9 +1016,15 @@ plot_quarterly()
 
 ## Coverage and data quality
 
+::: {.tallfig}
+
 ```{r}
+#| fig-width: 9.5
+#| fig-height: 6
 plot_coverage_office_lines()
 ```
+
+:::
 
 ## Post-Distribution Monitoring (PDM) deployments
 
@@ -1215,7 +1238,7 @@ We comply with all requirements of the WFP Information Security Policy as the Pr
 plot_budget_overall()
 ```
 
-### Amounts
+### By Item
 
 ```{r}
 #| fig-width: 9.5
@@ -1469,7 +1492,9 @@ intify(p, w = 680) |> clean_legend()
 
 :::
 
+
 ### By category (percent)
+
 
 ![](charts/11g_budget_expense_forecast_percent.png)
 
@@ -1483,10 +1508,24 @@ intify(p, w = 680) |> clean_legend()
 
 :::
 
+
 ## Budget review: Current pressures and cost drivers
 
 - **Transportation & Mobility:** Rising fuel costs, local shortages, and regional transport constraints severely impact field efficiency. While (a limited number of) motorcycles assist monitor teams, current transportation provisions require a strategic review.
 - **DSA Alignment:** Current overnight Daily Subsistence Allowance (DSA) rates are outdated and need adjustments to reflect the increased cost of living and prevailing regional market conditions.
 - **Compensation:** Raised by TPM staff during trainings and review meetings, compensation packages are under pressure and need to be reviewed to ensure retention and motivation.
 - **Uneven/Expanded Scope:** Originally budgeted for mostly process and basic output/outcome monitoring, monitors are managing complex tasks (Outcome Monitoring, PDM, Early Warning, and market assessments).
-- **Staff Capacity Deficits:** In Tigray, insufficient staff due to the reduction from 23 to 15 FMAs. Currently, an overwhelming workload across multiple parallel surveys and pro
+- **Staff Capacity Deficits:** In Tigray, insufficient staff due to the reduction from 23 to 15 FMAs. Currently, an overwhelming workload across multiple parallel surveys and process monitoring might compromise data quality and regional coverage.
+
+
+## {background-color="white" .center}
+
+::: {style="text-align:center; color:#047B77;"}
+
+[**Thank you!**]{style="font-size: 3em;"}
+
+::: {style="margin-top: 1.2em; font-size: 0.85em;"}
+C4ED | Center for Evaluation and Development
+:::
+
+:::
