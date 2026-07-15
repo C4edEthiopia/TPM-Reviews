@@ -21,6 +21,7 @@ format:
     center: false
     hash: true
     scrollable: true
+  pptx: default
 execute:
   echo: false
   warning: false
@@ -728,9 +729,9 @@ plot_coverage_office_lines <- function() {
     scale_colour_manual(values = cov_office_cols, name = "WFP sub office:") +
     scale_x_date(date_labels = "%b-%y", date_breaks = "1 month") +
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
-    labs(title = paste0("Grand total sites visited: ",
+    labs(title = paste0("Grand total checklists submitted: ",
                         formatC(grand, big.mark = ",", format = "d")),
-         x = NULL, y = "Sites visited") +
+         x = NULL, y = "Checklists submitted") +
     theme_c4ed() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
           plot.title = element_text(face = "bold", size = 15, hjust = 0.5,
